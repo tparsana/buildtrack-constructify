@@ -9,16 +9,26 @@ import { useNavigate } from "react-router-dom";
 
 interface ProjectCardProps {
   project: Project;
+  onClick?: () => void; // Make onClick prop optional
 }
 
-const ProjectCard = ({ project }: ProjectCardProps) => {
+const ProjectCard = ({ project, onClick }: ProjectCardProps) => {
   const navigate = useNavigate();
   const daysRemaining = project.endDate ? calculateDaysRemaining(project.endDate) : 0;
+
+  // Use the provided onClick handler if available, otherwise navigate to project page
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else {
+      navigate(`/project/${project.id}`);
+    }
+  };
 
   return (
     <Card 
       className="glass-card h-full overflow-hidden animate-slide-in-bottom cursor-pointer hover:shadow-md transition-all duration-300"
-      onClick={() => navigate(`/project/${project.id}`)}
+      onClick={handleClick}
     >
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
