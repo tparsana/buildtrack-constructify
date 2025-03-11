@@ -1,4 +1,3 @@
-
 import { Project, Task, User } from "./data";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -243,19 +242,17 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
         // Fetch comments for this task
         const { data: commentsData, error: commentsError } = await supabase
           .from('comments')
-          .select('*, profiles(id, name, avatar, role)')
+          .select('*, profiles:user_id(id, name, avatar, role)')
           .eq('task_id', task.id);
         
         let comments = [];
         if (!commentsError && commentsData) {
           comments = commentsData.map(comment => {
-            // Fix the accessing of profiles data - properly handle the join result
-            const profile = comment.profiles as { 
-              id: string; 
-              name: string; 
-              avatar: string; 
-              role: string; 
-            } | null;
+            // Properly cast the profiles data with type checking
+            // The 'profiles' property could be null or an error if the relationship fails
+            const profile = comment.profiles && !('error' in comment.profiles) 
+              ? comment.profiles as { id: string; name: string; avatar: string; role: string; }
+              : null;
             
             return {
               id: comment.id,
@@ -547,3 +544,4 @@ export const useDataOperations = () => {
     }
   };
 };
+
