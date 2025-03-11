@@ -243,20 +243,38 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
         // Fetch comments for this task
         const { data: commentsData, error: commentsError } = await supabase
           .from('comments')
-          .select('*, profiles!comments_user_id_fkey(*)')
+          .select('*, profiles(id, name, avatar, role)')
           .eq('task_id', task.id);
         
-        const comments = commentsError ? [] : commentsData.map(comment => ({
-          id: comment.id,
-          text: comment.content,
-          author: {
-            id: comment.profiles.id,
-            name: comment.profiles.name,
-            avatar: comment.profiles.avatar,
-            role: comment.profiles.role,
-          },
-          createdAt: comment.created_at
-        }));
+        let comments = [];
+        if (!commentsError && commentsData) {
+          comments = commentsData.map(comment => {
+            // Fix the accessing of profiles data - properly handle the join result
+            const profile = comment.profiles as { 
+              id: string; 
+              name: string; 
+              avatar: string; 
+              role: string; 
+            } | null;
+            
+            return {
+              id: comment.id,
+              text: comment.content,
+              author: profile ? {
+                id: profile.id,
+                name: profile.name,
+                avatar: profile.avatar,
+                role: profile.role,
+              } : {
+                id: comment.user_id,
+                name: "Unknown User",
+                avatar: "",
+                role: "",
+              },
+              createdAt: comment.created_at
+            };
+          });
+        }
         
         return {
           ...mapTaskFromDb(

@@ -46,7 +46,7 @@ const RaiseTicketDialog = ({
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState(currentProjectId || "");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!currentUser) {
@@ -68,8 +68,8 @@ const RaiseTicketDialog = ({
       return;
     }
     
-    // Raise the ticket
-    const result = raiseTicket(title, description, projectId, currentUser.id);
+    // Raise the ticket - fixing the argument count and await the promise
+    const result = await raiseTicket(title, description, projectId);
     
     if (result.success) {
       // Reset form and close dialog
