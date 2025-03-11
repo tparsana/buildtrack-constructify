@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { getStatusColor, getUsers } from "@/lib/data";
-import { useDataOperations, fetchProjects, fetchTasks } from "@/lib/dataUtils";
+import { useToast } from "@/components/ui/use-toast";
 import { Project } from "@/lib/data";
 import ProjectCard from "@/components/ProjectCard";
 import StatusBadge from "@/components/StatusBadge";
@@ -16,78 +15,107 @@ import { Search, Plus, Building, CheckSquare, Clock, AlertTriangle, Loader2 } fr
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import { useQuery } from "@tanstack/react-query";
+import { fetchProjects } from "@/lib/projectUtils";
+import { fetchTasks, addTask } from "@/lib/taskUtils";
 
 const Index = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const { addProject, addTask } = useDataOperations();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { toast } = useToast();
   const users = getUsers();
-  const [isLoading, setIsLoading] = useState(true);
-  const [tasks, setTasks] = useState<any[]>([]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
-      return;
     }
-
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const [fetchedProjects, fetchedTasks] = await Promise.all([
-          fetchProjects(),
-          fetchTasks()
-        ]);
-        setProjects(fetchedProjects);
-        setTasks(fetchedTasks);
-      } catch (error) {
-        console.error("Error loading data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
   }, [isAuthenticated, navigate]);
 
-  // Filter projects based on search query
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: fetchProjects,
+    staleTime: 5 * 60 * 1000,
+    enabled: isAuthenticated,
+  });
+
+  const { data: tasks = [], isLoading: isLoadingTasks } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: () => fetchTasks(),
+    staleTime: 5 * 60 * 1000,
+    enabled: isAuthenticated,
+  });
+
   const filteredProjects = projects.filter(project => 
     project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
     project.client.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Calculate summary data
   const activeProjects = projects.filter(p => p.status === 'active').length;
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'done').length;
   const urgentTasks = tasks.filter(t => t.priority === 'urgent').length;
 
-  // Handle adding a new project
   const handleAddProject = async (project: Project) => {
-    const success = await addProject(project);
-    if (success) {
-      // Refresh projects
-      const refreshedProjects = await fetchProjects();
-      setProjects(refreshedProjects);
+    try {
+      const success = await addProject(project);
+      if (success) {
+        toast({
+          title: "Project Created",
+          description: `${project.name} has been successfully created`,
+        });
+        return true;
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create project",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("Error adding project:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create project",
+        variant: "destructive",
+      });
+      return false;
     }
   };
 
-  // Handle adding a new task
   const handleAddTask = async (task: any) => {
-    const success = await addTask(task);
-    if (success) {
-      // Refresh tasks
-      const refreshedTasks = await fetchTasks();
-      setTasks(refreshedTasks);
+    try {
+      const success = await addTask(task);
+      if (success) {
+        toast({
+          title: "Task Created",
+          description: `${task.title} has been successfully created`,
+        });
+        return true;
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create task",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("Error adding task:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create task",
+        variant: "destructive",
+      });
+      return false;
     }
   };
 
-  if (isLoading) {
+  if (isLoadingProjects || isLoadingTasks) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-[calc(100vh-80px)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <span className="ml-2">Loading dashboard...</span>
       </div>
@@ -123,7 +151,6 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card className="glass-card">
           <CardContent className="p-6">
@@ -194,7 +221,6 @@ const Index = () => {
         </Card>
       </div>
 
-      {/* Projects Section */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">Projects</h2>
@@ -227,6 +253,51 @@ const Index = () => {
       </div>
     </div>
   );
+};
+
+const addProject = async (project: Project): Promise<boolean> => {
+  try {
+    const { currentUser } = useAuth.getState();
+    if (!currentUser) return false;
+
+    const { supabase } = await import("@/integrations/supabase/client");
+
+    const { data: projectData, error: projectError } = await supabase
+      .from('projects')
+      .insert({
+        name: project.name,
+        description: project.description,
+        client: project.client,
+        location: project.location,
+        status: project.status,
+        progress: project.progress,
+        budget_total: project.budget.total,
+        budget_spent: project.budget.spent,
+        start_date: project.startDate,
+        end_date: project.endDate,
+        lead_id: currentUser.id
+      })
+      .select('*')
+      .single();
+
+    if (projectError) throw projectError;
+
+    if (projectData) {
+      const { error: memberError } = await supabase
+        .from('project_members')
+        .insert({
+          project_id: projectData.id,
+          user_id: currentUser.id
+        });
+
+      if (memberError) throw memberError;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error adding project:", error);
+    return false;
+  }
 };
 
 export default Index;

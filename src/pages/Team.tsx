@@ -1,44 +1,38 @@
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Search, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@/lib/data";
+import { useQuery } from "@tanstack/react-query";
+
+const fetchTeamMembers = async (): Promise<User[]> => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('name');
+  
+  if (error) throw error;
+  
+  return data.map(profile => ({
+    id: profile.id,
+    name: profile.name,
+    avatar: profile.avatar,
+    role: profile.role
+  }));
+};
 
 const Team = () => {
-  const [teamMembers, setTeamMembers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   
-  useEffect(() => {
-    // Fetch all team members
-    const fetchTeamMembers = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('name');
-        
-        if (error) throw error;
-        
-        setTeamMembers(data.map(profile => ({
-          id: profile.id,
-          name: profile.name,
-          avatar: profile.avatar,
-          role: profile.role
-        })));
-      } catch (error) {
-        console.error("Error fetching team members:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchTeamMembers();
-  }, []);
+  // Use React Query for data fetching with caching
+  const { data: teamMembers = [], isLoading } = useQuery({
+    queryKey: ['teamMembers'],
+    queryFn: fetchTeamMembers,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
   
   // Filter team members based on search query
   const filteredTeamMembers = teamMembers.filter(member => 
@@ -48,7 +42,7 @@ const Team = () => {
   
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-[calc(100vh-80px)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <span className="ml-2">Loading team...</span>
       </div>
