@@ -1,105 +1,194 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, users as mockUsers } from './data';
+import { User } from './data';
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
+
+export interface AuthUser {
+  id: string;
+  email?: string;
+}
+
+interface Profile {
+  id: string;
+  name: string;
+  avatar: string;
+  role: string;
+}
 
 interface AuthState {
   currentUser: User | null;
   isAdmin: boolean;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
   register: (name: string, email: string, password: string, role: string) => Promise<{ success: boolean; message: string; userId?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
-// Store user credentials for demo purposes (in a real app, this would be in a database)
-const userCredentials: Record<string, { password: string; userId: string }> = {
-  'john@buildtrack.com': { password: 'password123', userId: 'u1' },
-  'sarah@buildtrack.com': { password: 'password123', userId: 'u2' },
-  'michael@buildtrack.com': { password: 'password123', userId: 'u3' },
-  'emily@buildtrack.com': { password: 'password123', userId: 'u4' },
-};
-
-// Create auth store with persistence
 export const useAuth = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       currentUser: null,
       isAdmin: false,
       isAuthenticated: false,
+      isLoading: true,
       
       login: async (email: string, password: string) => {
-        // Check if user exists
-        const userCred = userCredentials[email];
-        
-        if (!userCred) {
-          return { success: false, message: 'User not found' };
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (error) {
+            return { success: false, message: error.message };
+          }
+          
+          // Fetch user profile
+          if (data.user) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .single();
+            
+            if (profileData) {
+              const user: User = {
+                id: profileData.id,
+                name: profileData.name,
+                avatar: profileData.avatar,
+                role: profileData.role
+              };
+              
+              set({
+                currentUser: user,
+                isAuthenticated: true,
+                isAdmin: profileData.role === 'Project Manager'
+              });
+              
+              return { success: true, message: 'Login successful' };
+            }
+          }
+          
+          return { success: false, message: 'User profile not found' };
+        } catch (error) {
+          console.error('Login error:', error);
+          return { success: false, message: 'An unexpected error occurred' };
         }
-        
-        // Check password
-        if (userCred.password !== password) {
-          return { success: false, message: 'Invalid password' };
-        }
-        
-        // Find user in mock data
-        const user = mockUsers.find(u => u.id === userCred.userId);
-        
-        if (!user) {
-          return { success: false, message: 'User data not found' };
-        }
-        
-        // Set auth state
-        set({
-          currentUser: user,
-          isAuthenticated: true,
-          isAdmin: user.role === 'Project Manager' // For demo, project managers are admins
-        });
-        
-        return { success: true, message: 'Login successful' };
       },
       
       register: async (name: string, email: string, password: string, role: string) => {
-        // Check if email already exists
-        if (userCredentials[email]) {
-          return { success: false, message: 'Email already registered' };
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                name,
+                role
+              }
+            }
+          });
+          
+          if (error) {
+            return { success: false, message: error.message };
+          }
+          
+          if (data.user) {
+            const user: User = {
+              id: data.user.id,
+              name,
+              avatar: `https://i.pravatar.cc/150?u=${name.replace(/\s+/g, '')}`,
+              role
+            };
+            
+            set({
+              currentUser: user,
+              isAuthenticated: true,
+              isAdmin: role === 'Project Manager'
+            });
+            
+            return { success: true, message: 'Registration successful', userId: data.user.id };
+          }
+          
+          return { success: false, message: 'User registration failed' };
+        } catch (error) {
+          console.error('Registration error:', error);
+          return { success: false, message: 'An unexpected error occurred' };
         }
-        
-        // Generate a new user ID
-        const userId = `u${Math.floor(Math.random() * 10000)}`;
-        
-        // Create new user credentials
-        userCredentials[email] = {
-          password,
-          userId
-        };
-        
-        // Create new user
-        const newUser: User = {
-          id: userId,
-          name,
-          avatar: `https://i.pravatar.cc/150?u=${name.replace(/\s+/g, '')}`,
-          role
-        };
-        
-        // Add to mock users (in a real app, this would be saved to a database)
-        mockUsers.push(newUser);
-        
-        // Set auth state
-        set({
-          currentUser: newUser,
-          isAuthenticated: true,
-          isAdmin: role === 'Project Manager' // For demo, project managers are admins
-        });
-        
-        return { success: true, message: 'Registration successful', userId };
       },
       
-      logout: () => {
-        set({
-          currentUser: null,
-          isAuthenticated: false,
-          isAdmin: false
-        });
+      logout: async () => {
+        try {
+          await supabase.auth.signOut();
+          set({
+            currentUser: null,
+            isAuthenticated: false,
+            isAdmin: false
+          });
+        } catch (error) {
+          console.error('Logout error:', error);
+          toast({
+            title: "Error",
+            description: "Failed to log out",
+            variant: "destructive",
+          });
+        }
+      },
+      
+      refreshSession: async () => {
+        try {
+          set({ isLoading: true });
+          
+          const { data } = await supabase.auth.getSession();
+          
+          if (data.session?.user) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .single();
+            
+            if (profileData) {
+              const user: User = {
+                id: profileData.id,
+                name: profileData.name,
+                avatar: profileData.avatar,
+                role: profileData.role
+              };
+              
+              set({
+                currentUser: user,
+                isAuthenticated: true,
+                isAdmin: profileData.role === 'Project Manager'
+              });
+            } else {
+              set({
+                currentUser: null,
+                isAuthenticated: false,
+                isAdmin: false
+              });
+            }
+          } else {
+            set({
+              currentUser: null,
+              isAuthenticated: false,
+              isAdmin: false
+            });
+          }
+        } catch (error) {
+          console.error('Session refresh error:', error);
+          set({
+            currentUser: null,
+            isAuthenticated: false,
+            isAdmin: false
+          });
+        } finally {
+          set({ isLoading: false });
+        }
       }
     }),
     {
@@ -107,3 +196,17 @@ export const useAuth = create<AuthState>()(
     }
   )
 );
+
+// Initialize auth state on app load
+if (typeof window !== 'undefined') {
+  useAuth.getState().refreshSession();
+  
+  // Set up auth state change listener
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      await useAuth.getState().refreshSession();
+    } else if (event === 'SIGNED_OUT') {
+      useAuth.getState().logout();
+    }
+  });
+}

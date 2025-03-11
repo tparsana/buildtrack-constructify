@@ -1,7 +1,8 @@
 
-import { useState } from "react";
-import { getProjects, getStatusColor, getUsers } from "@/lib/data";
-import { useDataOperations } from "@/lib/dataUtils";
+import { useState, useEffect } from "react";
+import { getStatusColor, getUsers } from "@/lib/data";
+import { useDataOperations, fetchProjects, fetchTasks } from "@/lib/dataUtils";
+import { Project } from "@/lib/data";
 import ProjectCard from "@/components/ProjectCard";
 import StatusBadge from "@/components/StatusBadge";
 import NewProjectDialog from "@/components/NewProjectDialog";
@@ -10,19 +11,46 @@ import { Button } from "@/components/ui/button";
 import { 
   Card, 
   CardContent, 
-  CardHeader, 
-  CardTitle 
 } from "@/components/ui/card";
-import { Search, Plus, Building, CheckSquare, Clock, AlertTriangle } from "lucide-react";
+import { Search, Plus, Building, CheckSquare, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const { addProject, addTask } = useDataOperations();
-  const projects = getProjects();
+  const [projects, setProjects] = useState<Project[]>([]);
   const users = getUsers();
+  const [isLoading, setIsLoading] = useState(true);
+  const [tasks, setTasks] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [fetchedProjects, fetchedTasks] = await Promise.all([
+          fetchProjects(),
+          fetchTasks()
+        ]);
+        setProjects(fetchedProjects);
+        setTasks(fetchedTasks);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [isAuthenticated, navigate]);
 
   // Filter projects based on search query
   const filteredProjects = projects.filter(project => 
@@ -33,21 +61,38 @@ const Index = () => {
 
   // Calculate summary data
   const activeProjects = projects.filter(p => p.status === 'active').length;
-  const totalTasks = projects.reduce((total, project) => total + project.tasks.length, 0);
-  const completedTasks = projects.reduce((total, project) => 
-    total + project.tasks.filter(t => t.status === 'done').length, 0);
-  const urgentTasks = projects.reduce((total, project) => 
-    total + project.tasks.filter(t => t.priority === 'urgent').length, 0);
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(t => t.status === 'done').length;
+  const urgentTasks = tasks.filter(t => t.priority === 'urgent').length;
 
   // Handle adding a new project
-  const handleAddProject = (project: any) => {
-    addProject(project);
+  const handleAddProject = async (project: Project) => {
+    const success = await addProject(project);
+    if (success) {
+      // Refresh projects
+      const refreshedProjects = await fetchProjects();
+      setProjects(refreshedProjects);
+    }
   };
 
   // Handle adding a new task
-  const handleAddTask = (task: any) => {
-    addTask(task);
+  const handleAddTask = async (task: any) => {
+    const success = await addTask(task);
+    if (success) {
+      // Refresh tasks
+      const refreshedTasks = await fetchTasks();
+      setTasks(refreshedTasks);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading dashboard...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="container px-6 py-8 animate-fade-in">

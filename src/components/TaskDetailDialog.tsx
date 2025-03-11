@@ -21,6 +21,7 @@ import StatusBadge from "./StatusBadge";
 import { Calendar, MessageSquare, Paperclip, User as UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
+import { addComment } from "@/lib/dataUtils";
 
 interface TaskDetailDialogProps {
   task: Task;
@@ -42,6 +43,7 @@ const TaskDetailDialog = ({
   const [priority, setPriority] = useState(task.priority);
   const [assigneeId, setAssigneeId] = useState(task.assignee?.id || "");
   const [comment, setComment] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus as Task["status"]);
@@ -86,28 +88,39 @@ const TaskDetailDialog = ({
     });
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!comment.trim()) return;
     
-    const newComment = {
-      id: `c${Math.floor(Math.random() * 10000)}`,
-      text: comment,
-      author: task.reporter, // Using reporter as the current user for now
-      createdAt: new Date().toISOString().split('T')[0]
-    };
+    setIsSubmitting(true);
     
-    const updatedTask = {
-      ...task,
-      comments: [...task.comments, newComment],
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-    
-    onUpdateTask(updatedTask);
-    setComment("");
-    toast({
-      title: "Comment Added",
-      description: "Your comment has been added to the task",
-    });
+    try {
+      const success = await addComment(task.id, comment);
+      
+      if (success) {
+        // The comment was added in the database, now update the local state
+        // This refresh will happen when onUpdateTask is called
+        toast({
+          title: "Comment Added",
+          description: "Your comment has been added to the task",
+        });
+        setComment("");
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to add comment",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -159,14 +172,18 @@ const TaskDetailDialog = ({
                   onChange={(e) => setComment(e.target.value)}
                   className="min-h-[80px]"
                 />
-                <Button onClick={handleAddComment} className="h-10">
+                <Button 
+                  onClick={handleAddComment} 
+                  className="h-10"
+                  disabled={isSubmitting || !comment.trim()}
+                >
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Comment
                 </Button>
               </div>
             </div>
             
-            {task.attachments.length > 0 && (
+            {task.attachments && task.attachments.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium mb-2">Attachments</h3>
                 <div className="space-y-2">

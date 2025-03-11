@@ -1,6 +1,5 @@
-
-import { useState } from "react";
-import { getTasks, getStatusColor, getPriorityColor, getProjects, getUsers } from "@/lib/data";
+import { useState, useEffect } from "react";
+import { getPriorityColor, getStatusColor, getProjects, getUsers } from "@/lib/data";
 import { useDataOperations } from "@/lib/dataUtils";
 import { Task } from "@/lib/data";
 import TaskCard from "@/components/TaskCard";
@@ -9,6 +8,7 @@ import NewTaskDialog from "@/components/NewTaskDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { fetchTasks } from "@/lib/dataUtils";
 import { 
   Select, 
   SelectContent, 
@@ -17,20 +17,45 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Filter, ArrowUpDown } from "lucide-react";
+import { Search, Plus, Filter, ArrowUpDown, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { useNavigate } from "react-router-dom";
 
 const Tasks = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const projects = getProjects();
   const users = getUsers();
   const { addTask, updateTask } = useDataOperations();
-  const allTasks = getTasks();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
-  const [tasks, setTasks] = useState(allTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    
+    const loadTasks = async () => {
+      setIsLoading(true);
+      try {
+        const fetchedTasks = await fetchTasks();
+        setTasks(fetchedTasks);
+      } catch (error) {
+        console.error("Error loading tasks:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadTasks();
+  }, [isAuthenticated, navigate]);
   
   // Filter tasks based on search, status, and priority
   const filteredTasks = tasks.filter(task => {
@@ -68,18 +93,21 @@ const Tasks = () => {
   const doneTasks = sortedTasks.filter(task => task.status === 'done');
   
   // Handle adding a new task
-  const handleAddTask = (task: Task) => {
-    if (addTask(task)) {
-      setTasks([...tasks, task]);
+  const handleAddTask = async (task: Task) => {
+    const success = await addTask(task);
+    if (success) {
+      // Refresh tasks
+      const updatedTasks = await fetchTasks();
+      setTasks(updatedTasks);
     }
   };
   
   // Handle updating an existing task
-  const handleUpdateTask = (updatedTask: Task) => {
-    if (updateTask(updatedTask)) {
-      const updatedTasks = tasks.map(task => 
-        task.id === updatedTask.id ? updatedTask : task
-      );
+  const handleUpdateTask = async (updatedTask: Task) => {
+    const success = await updateTask(updatedTask);
+    if (success) {
+      // Refresh tasks
+      const updatedTasks = await fetchTasks();
       setTasks(updatedTasks);
     }
   };
@@ -89,6 +117,15 @@ const Tasks = () => {
     setSelectedTask(task);
     setIsTaskDetailOpen(true);
   };
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading tasks...</span>
+      </div>
+    );
+  }
   
   return (
     <div className="container px-6 py-8 animate-fade-in">

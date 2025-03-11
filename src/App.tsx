@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth";
+import { useEffect, useState } from "react";
 import Index from "./pages/Index";
 import Project from "./pages/Project";
 import Tasks from "./pages/Tasks";
@@ -15,11 +16,30 @@ import Register from "./pages/Register";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isLoading, refreshSession } = useAuth();
+  const [initializing, setInitializing] = useState(true);
+  
+  useEffect(() => {
+    const checkSession = async () => {
+      await refreshSession();
+      setInitializing(false);
+    };
+    checkSession();
+  }, [refreshSession]);
+  
+  if (initializing || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading application...</span>
+      </div>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -29,8 +49,8 @@ const App = () => {
         <BrowserRouter>
           <SidebarProvider>
             <div className="min-h-screen flex w-full">
-              <Navbar />
-              <main className="flex-1 overflow-auto">
+              {isAuthenticated && <Navbar />}
+              <main className={`flex-1 overflow-auto ${!isAuthenticated ? 'bg-gray-50' : ''}`}>
                 <Routes>
                   {/* Public routes */}
                   <Route path="/login" element={
