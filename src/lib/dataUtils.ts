@@ -1,3 +1,4 @@
+
 import { Project, Task, User } from "./data";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +46,34 @@ const mapTaskFromDb = (task: any, assignee?: User, reporter?: User): Task => {
   };
 };
 
+// Fetch profiles for a list of user IDs
+const fetchUserProfiles = async (userIds: string[]): Promise<Map<string, User>> => {
+  if (userIds.length === 0) return new Map();
+  
+  const { data: profilesData, error: profilesError } = await supabase
+    .from('profiles')
+    .select('*')
+    .in('id', Array.from(userIds));
+  
+  if (profilesError) {
+    console.error("Error fetching user profiles:", profilesError);
+    return new Map();
+  }
+  
+  // Create a map of user IDs to user objects
+  const userMap = new Map<string, User>();
+  profilesData.forEach(profile => {
+    userMap.set(profile.id, {
+      id: profile.id,
+      name: profile.name,
+      avatar: profile.avatar,
+      role: profile.role
+    });
+  });
+  
+  return userMap;
+};
+
 // Fetch all projects
 export const fetchProjects = async (): Promise<Project[]> => {
   try {
@@ -59,25 +88,8 @@ export const fetchProjects = async (): Promise<Project[]> => {
     projectsData.forEach(project => {
       if (project.lead_id) userIds.add(project.lead_id);
     });
-
-    // Fetch all profiles in one go
-    const { data: profilesData, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', Array.from(userIds));
-
-    if (profilesError) throw profilesError;
-
-    // Create a map of user IDs to user objects
-    const userMap = new Map<string, User>();
-    profilesData.forEach(profile => {
-      userMap.set(profile.id, {
-        id: profile.id,
-        name: profile.name,
-        avatar: profile.avatar,
-        role: profile.role
-      });
-    });
+    
+    const userMap = await fetchUserProfiles(Array.from(userIds));
 
     // For each project, fetch team members
     const projectsWithTeam = await Promise.all(
@@ -97,19 +109,8 @@ export const fetchProjects = async (): Promise<Project[]> => {
         let teamMembers: User[] = [];
 
         if (teamMemberIds.length > 0) {
-          const { data: teamProfilesData, error: teamProfilesError } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('id', teamMemberIds);
-
-          if (!teamProfilesError && teamProfilesData) {
-            teamMembers = teamProfilesData.map(profile => ({
-              id: profile.id,
-              name: profile.name,
-              avatar: profile.avatar,
-              role: profile.role
-            }));
-          }
+          const teamUserMap = await fetchUserProfiles(teamMemberIds);
+          teamMembers = Array.from(teamUserMap.values());
         }
 
         return mapProjectFromDb(project, userMap.get(project.lead_id), teamMembers);
@@ -198,6 +199,48 @@ export const updateProject = async (updatedProject: Project): Promise<boolean> =
   }
 };
 
+// Fetch comments for tasks
+const fetchTaskComments = async (taskId: string) => {
+  try {
+    const { data: commentsData, error: commentsError } = await supabase
+      .from('comments')
+      .select('*, profiles:user_id(id, name, avatar, role)')
+      .eq('task_id', taskId);
+    
+    if (commentsError) {
+      console.error("Error fetching comments:", commentsError);
+      return [];
+    }
+    
+    return commentsData.map(comment => {
+      // Properly cast the profiles data with type checking
+      const profile = comment.profiles && !('error' in comment.profiles) 
+        ? comment.profiles as { id: string; name: string; avatar: string; role: string; }
+        : null;
+      
+      return {
+        id: comment.id,
+        text: comment.content,
+        author: profile ? {
+          id: profile.id,
+          name: profile.name,
+          avatar: profile.avatar,
+          role: profile.role,
+        } : {
+          id: comment.user_id,
+          name: "Unknown User",
+          avatar: "",
+          role: "",
+        },
+        createdAt: comment.created_at
+      };
+    });
+  } catch (error) {
+    console.error("Error in fetchTaskComments:", error);
+    return [];
+  }
+};
+
 // Fetch tasks for a project
 export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
   try {
@@ -218,60 +261,12 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
       if (task.reporter_id) userIds.add(task.reporter_id);
     });
     
-    const { data: profilesData, error: profilesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', Array.from(userIds));
-    
-    if (profilesError) throw profilesError;
-    
-    // Create a map of user IDs to user objects
-    const userMap = new Map<string, User>();
-    profilesData.forEach(profile => {
-      userMap.set(profile.id, {
-        id: profile.id,
-        name: profile.name,
-        avatar: profile.avatar,
-        role: profile.role
-      });
-    });
+    const userMap = await fetchUserProfiles(Array.from(userIds));
     
     // Map tasks with assignee and reporter
     const mappedTasks = await Promise.all(
       tasksData.map(async (task) => {
-        // Fetch comments for this task
-        const { data: commentsData, error: commentsError } = await supabase
-          .from('comments')
-          .select('*, profiles:user_id(id, name, avatar, role)')
-          .eq('task_id', task.id);
-        
-        let comments = [];
-        if (!commentsError && commentsData) {
-          comments = commentsData.map(comment => {
-            // Properly cast the profiles data with type checking
-            // The 'profiles' property could be null or an error if the relationship fails
-            const profile = comment.profiles && !('error' in comment.profiles) 
-              ? comment.profiles as { id: string; name: string; avatar: string; role: string; }
-              : null;
-            
-            return {
-              id: comment.id,
-              text: comment.content,
-              author: profile ? {
-                id: profile.id,
-                name: profile.name,
-                avatar: profile.avatar,
-                role: profile.role,
-              } : {
-                id: comment.user_id,
-                name: "Unknown User",
-                avatar: "",
-                role: "",
-              },
-              createdAt: comment.created_at
-            };
-          });
-        }
+        const comments = await fetchTaskComments(task.id);
         
         return {
           ...mapTaskFromDb(
@@ -313,19 +308,6 @@ export const addTask = async (task: Task): Promise<boolean> => {
     
     if (error) throw error;
     
-    // If task has an assignee, trigger notification
-    if (task.assignee) {
-      // Send email notification
-      await supabase.functions.invoke('send-notification', {
-        body: {
-          to: task.assignee.id, // In a real app, this would be the user's email
-          subject: 'New Task Assigned',
-          text: `You have been assigned a new task: ${task.title}`,
-          type: 'task_assigned'
-        }
-      });
-    }
-    
     return true;
   } catch (error) {
     console.error("Error adding task:", error);
@@ -360,19 +342,6 @@ export const updateTask = async (updatedTask: Task): Promise<boolean> => {
       .eq('id', updatedTask.id);
     
     if (error) throw error;
-    
-    // If assignee was changed, send notification
-    if (newAssigneeId && newAssigneeId !== previousAssigneeId) {
-      // Send email notification
-      await supabase.functions.invoke('send-notification', {
-        body: {
-          to: newAssigneeId, // In a real app, this would be the user's email
-          subject: 'Task Assignment',
-          text: `You have been assigned to the task: ${updatedTask.title}`,
-          type: 'task_assigned'
-        }
-      });
-    }
     
     return true;
   } catch (error) {
@@ -544,4 +513,3 @@ export const useDataOperations = () => {
     }
   };
 };
-

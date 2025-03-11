@@ -14,6 +14,9 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
+import Team from "./pages/Team";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { Loader2 } from "lucide-react";
@@ -80,11 +83,26 @@ const App = () => {
                       <Tasks />
                     </ProtectedRoute>
                   } />
+                  <Route path="/team" element={
+                    <ProtectedRoute requireAdmin={true}>
+                      <Team />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/settings" element={
+                    <ProtectedRoute requireAdmin={true}>
+                      <Settings />
+                    </ProtectedRoute>
+                  } />
                   
                   {/* Protected employee routes */}
                   <Route path="/employee" element={
                     <ProtectedRoute>
                       <EmployeeDashboard />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <Profile />
                     </ProtectedRoute>
                   } />
                   
