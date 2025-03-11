@@ -1,14 +1,43 @@
 
 import { Link, useLocation } from "react-router-dom";
-import { Sidebar, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarHeader, SidebarTrigger, SidebarFooter } from "@/components/ui/sidebar";
-import { Building, CheckSquare, LayoutDashboard, Settings, Users } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { 
+  Sidebar, 
+  SidebarContent, 
+  SidebarMenu, 
+  SidebarMenuItem, 
+  SidebarMenuButton, 
+  SidebarHeader, 
+  SidebarTrigger, 
+  SidebarFooter 
+} from "@/components/ui/sidebar";
+import { 
+  Building, 
+  CheckSquare, 
+  LayoutDashboard, 
+  Settings, 
+  Users, 
+  LogOut,
+  User
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 
 const Navbar = () => {
   const location = useLocation();
+  const { currentUser, isAdmin, isAuthenticated, logout } = useAuth();
   
   const isActive = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
+  
+  const handleLogout = () => {
+    logout();
+  };
+  
+  if (!isAuthenticated) {
+    return null; // Don't show navbar on login/register pages
+  }
   
   return (
     <Sidebar>
@@ -21,56 +50,98 @@ const Navbar = () => {
       
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton isActive={isActive("/")} asChild>
-              <Link to="/" className="flex items-center">
-                <LayoutDashboard className="mr-2 h-5 w-5" />
-                <span>Dashboard</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          
-          <SidebarMenuItem>
-            <SidebarMenuButton isActive={isActive("/tasks")} asChild>
-              <Link to="/tasks" className="flex items-center">
-                <CheckSquare className="mr-2 h-5 w-5" />
-                <span>Tasks</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          
-          <SidebarMenuItem>
-            <SidebarMenuButton isActive={false} asChild>
-              <Link to="#" className="flex items-center">
-                <Users className="mr-2 h-5 w-5" />
-                <span>Team</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          
-          <SidebarMenuItem>
-            <SidebarMenuButton isActive={false} asChild>
-              <Link to="#" className="flex items-center">
-                <Settings className="mr-2 h-5 w-5" />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {isAdmin ? (
+            // Admin Menu Items
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={isActive("/")} asChild>
+                  <Link to="/" className="flex items-center">
+                    <LayoutDashboard className="mr-2 h-5 w-5" />
+                    <span>Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={isActive("/tasks")} asChild>
+                  <Link to="/tasks" className="flex items-center">
+                    <CheckSquare className="mr-2 h-5 w-5" />
+                    <span>Tasks</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={isActive("/team")} asChild>
+                  <Link to="/team" className="flex items-center">
+                    <Users className="mr-2 h-5 w-5" />
+                    <span>Team</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={isActive("/settings")} asChild>
+                  <Link to="/settings" className="flex items-center">
+                    <Settings className="mr-2 h-5 w-5" />
+                    <span>Settings</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
+          ) : (
+            // Employee Menu Items
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={isActive("/employee")} asChild>
+                  <Link to="/employee" className="flex items-center">
+                    <LayoutDashboard className="mr-2 h-5 w-5" />
+                    <span>My Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={isActive("/profile")} asChild>
+                  <Link to="/profile" className="flex items-center">
+                    <User className="mr-2 h-5 w-5" />
+                    <span>My Profile</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
+          )}
         </SidebarMenu>
       </SidebarContent>
       
       <SidebarFooter className="p-4">
         <div className="flex items-center justify-between px-2">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <span className="text-primary text-sm font-medium">JS</span>
-            </div>
-            <div className="text-sm">
-              <p className="font-medium">John Smith</p>
-              <p className="text-xs text-gray-500">Project Manager</p>
-            </div>
+            {currentUser && (
+              <>
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={currentUser.avatar} />
+                  <AvatarFallback>{currentUser.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="text-sm">
+                  <p className="font-medium">{currentUser.name}</p>
+                  <p className="text-xs text-gray-500">{currentUser.role}</p>
+                </div>
+              </>
+            )}
           </div>
-          <SidebarTrigger />
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleLogout}
+              className="h-8 w-8"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="sr-only">Logout</span>
+            </Button>
+            <SidebarTrigger />
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>

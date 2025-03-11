@@ -1,7 +1,11 @@
 
-import { getProjects, getStatusColor } from "@/lib/data";
+import { useState } from "react";
+import { getProjects, getStatusColor, getUsers } from "@/lib/data";
+import { useDataOperations } from "@/lib/dataUtils";
 import ProjectCard from "@/components/ProjectCard";
 import StatusBadge from "@/components/StatusBadge";
+import NewProjectDialog from "@/components/NewProjectDialog";
+import NewTaskDialog from "@/components/NewTaskDialog";
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
@@ -15,7 +19,17 @@ import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const { addProject, addTask } = useDataOperations();
   const projects = getProjects();
+  const users = getUsers();
+
+  // Filter projects based on search query
+  const filteredProjects = projects.filter(project => 
+    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    project.client.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Calculate summary data
   const activeProjects = projects.filter(p => p.status === 'active').length;
@@ -24,6 +38,16 @@ const Index = () => {
     total + project.tasks.filter(t => t.status === 'done').length, 0);
   const urgentTasks = projects.reduce((total, project) => 
     total + project.tasks.filter(t => t.priority === 'urgent').length, 0);
+
+  // Handle adding a new project
+  const handleAddProject = (project: any) => {
+    addProject(project);
+  };
+
+  // Handle adding a new task
+  const handleAddTask = (task: any) => {
+    addTask(task);
+  };
 
   return (
     <div className="container px-6 py-8 animate-fade-in">
@@ -38,12 +62,19 @@ const Index = () => {
             <Input 
               placeholder="Search projects..." 
               className="pl-10 w-[250px]" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Button>
+          <NewProjectDialog
+            onAddProject={handleAddProject}
+            trigger={
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Project
+              </Button>
+            }
+          />
         </div>
       </div>
 
@@ -122,14 +153,31 @@ const Index = () => {
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">Projects</h2>
-          <Button variant="outline" onClick={() => navigate("/projects")}>
-            View All
-          </Button>
+          <NewTaskDialog
+            projects={projects}
+            users={users}
+            onAddTask={handleAddTask}
+            trigger={
+              <Button variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Task
+              </Button>
+            }
+          />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+          {filteredProjects.map((project) => (
+            <ProjectCard 
+              key={project.id} 
+              project={project} 
+              onClick={() => navigate(`/project/${project.id}`)}
+            />
           ))}
+          {filteredProjects.length === 0 && (
+            <div className="col-span-full text-center py-12 text-gray-500">
+              <p>No projects found matching your search.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

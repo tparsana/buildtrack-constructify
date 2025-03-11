@@ -1,6 +1,11 @@
 
-import { getTasks, getStatusColor, getPriorityColor } from "@/lib/data";
+import { useState } from "react";
+import { getTasks, getStatusColor, getPriorityColor, getProjects, getUsers } from "@/lib/data";
+import { useDataOperations } from "@/lib/dataUtils";
+import { Task } from "@/lib/data";
 import TaskCard from "@/components/TaskCard";
+import TaskDetailDialog from "@/components/TaskDetailDialog";
+import NewTaskDialog from "@/components/NewTaskDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,17 +18,22 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, Filter, ArrowUpDown } from "lucide-react";
-import { useState } from "react";
 
 const Tasks = () => {
+  const projects = getProjects();
+  const users = getUsers();
+  const { addTask, updateTask } = useDataOperations();
   const allTasks = getTasks();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+  const [tasks, setTasks] = useState(allTasks);
   
   // Filter tasks based on search, status, and priority
-  const filteredTasks = allTasks.filter(task => {
+  const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           task.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = filterStatus === "all" || task.status === filterStatus;
@@ -57,6 +67,29 @@ const Tasks = () => {
   const reviewTasks = sortedTasks.filter(task => task.status === 'review');
   const doneTasks = sortedTasks.filter(task => task.status === 'done');
   
+  // Handle adding a new task
+  const handleAddTask = (task: Task) => {
+    if (addTask(task)) {
+      setTasks([...tasks, task]);
+    }
+  };
+  
+  // Handle updating an existing task
+  const handleUpdateTask = (updatedTask: Task) => {
+    if (updateTask(updatedTask)) {
+      const updatedTasks = tasks.map(task => 
+        task.id === updatedTask.id ? updatedTask : task
+      );
+      setTasks(updatedTasks);
+    }
+  };
+  
+  // Open task details dialog
+  const handleOpenTaskDetails = (task: Task) => {
+    setSelectedTask(task);
+    setIsTaskDetailOpen(true);
+  };
+  
   return (
     <div className="container px-6 py-8 animate-fade-in">
       <div className="flex justify-between items-center mb-8">
@@ -64,10 +97,17 @@ const Tasks = () => {
           <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
           <p className="text-gray-500 mt-1">Manage all project tasks in one place</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Task
-        </Button>
+        <NewTaskDialog
+          projects={projects}
+          users={users}
+          onAddTask={handleAddTask}
+          trigger={
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Task
+            </Button>
+          }
+        />
       </div>
       
       <div className="flex flex-wrap gap-4 mb-6">
@@ -93,6 +133,7 @@ const Tasks = () => {
               <SelectItem value="in-progress">In Progress</SelectItem>
               <SelectItem value="review">Review</SelectItem>
               <SelectItem value="done">Done</SelectItem>
+              <SelectItem value="on-hold">On Hold</SelectItem>
             </SelectContent>
           </Select>
           
@@ -139,13 +180,24 @@ const Tasks = () => {
             <div className="space-y-3">
               <h3 className="font-medium text-sm flex items-center justify-between">
                 <span>To Do ({todoTasks.length})</span>
-                <Button variant="ghost" size="sm" className="h-7 px-2">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <NewTaskDialog
+                  projects={projects}
+                  users={users}
+                  onAddTask={handleAddTask}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="h-7 px-2">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  }
+                />
               </h3>
               <div className="space-y-3">
                 {todoTasks.map(task => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard 
+                    key={task.id} 
+                    task={task} 
+                    onClick={() => handleOpenTaskDetails(task)}
+                  />
                 ))}
                 {todoTasks.length === 0 && 
                   <Card className="glass-card">
@@ -160,13 +212,24 @@ const Tasks = () => {
             <div className="space-y-3">
               <h3 className="font-medium text-sm flex items-center justify-between">
                 <span>In Progress ({inProgressTasks.length})</span>
-                <Button variant="ghost" size="sm" className="h-7 px-2">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <NewTaskDialog
+                  projects={projects}
+                  users={users}
+                  onAddTask={handleAddTask}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="h-7 px-2">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  }
+                />
               </h3>
               <div className="space-y-3">
                 {inProgressTasks.map(task => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard 
+                    key={task.id} 
+                    task={task} 
+                    onClick={() => handleOpenTaskDetails(task)}
+                  />
                 ))}
                 {inProgressTasks.length === 0 && 
                   <Card className="glass-card">
@@ -181,13 +244,24 @@ const Tasks = () => {
             <div className="space-y-3">
               <h3 className="font-medium text-sm flex items-center justify-between">
                 <span>Review ({reviewTasks.length})</span>
-                <Button variant="ghost" size="sm" className="h-7 px-2">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <NewTaskDialog
+                  projects={projects}
+                  users={users}
+                  onAddTask={handleAddTask}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="h-7 px-2">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  }
+                />
               </h3>
               <div className="space-y-3">
                 {reviewTasks.map(task => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard 
+                    key={task.id} 
+                    task={task} 
+                    onClick={() => handleOpenTaskDetails(task)}
+                  />
                 ))}
                 {reviewTasks.length === 0 && 
                   <Card className="glass-card">
@@ -202,13 +276,24 @@ const Tasks = () => {
             <div className="space-y-3">
               <h3 className="font-medium text-sm flex items-center justify-between">
                 <span>Done ({doneTasks.length})</span>
-                <Button variant="ghost" size="sm" className="h-7 px-2">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <NewTaskDialog
+                  projects={projects}
+                  users={users}
+                  onAddTask={handleAddTask}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="h-7 px-2">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  }
+                />
               </h3>
               <div className="space-y-3">
                 {doneTasks.map(task => (
-                  <TaskCard key={task.id} task={task} />
+                  <TaskCard 
+                    key={task.id} 
+                    task={task} 
+                    onClick={() => handleOpenTaskDetails(task)}
+                  />
                 ))}
                 {doneTasks.length === 0 && 
                   <Card className="glass-card">
@@ -228,7 +313,11 @@ const Tasks = () => {
               <div className="space-y-3">
                 {sortedTasks.length > 0 ? (
                   sortedTasks.map(task => (
-                    <div key={task.id} className="flex items-center gap-4 p-3 rounded-md hover:bg-gray-50 transition-colors">
+                    <div 
+                      key={task.id} 
+                      className="flex items-center gap-4 p-3 rounded-md hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => handleOpenTaskDetails(task)}
+                    >
                       <div className="flex-1">
                         <div className="flex justify-between">
                           <h3 className="font-medium">{task.title}</h3>
@@ -253,6 +342,17 @@ const Tasks = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Task Detail Dialog */}
+      {selectedTask && (
+        <TaskDetailDialog
+          task={selectedTask}
+          open={isTaskDetailOpen}
+          onOpenChange={setIsTaskDetailOpen}
+          users={users}
+          onUpdateTask={handleUpdateTask}
+        />
+      )}
     </div>
   );
 };
