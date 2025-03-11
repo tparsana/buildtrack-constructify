@@ -22,7 +22,7 @@ const Navbar = () => {
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton active={isActive("/")} asChild>
+            <SidebarMenuButton isActive={isActive("/")} asChild>
               <Link to="/" className="flex items-center">
                 <LayoutDashboard className="mr-2 h-5 w-5" />
                 <span>Dashboard</span>
@@ -31,7 +31,7 @@ const Navbar = () => {
           </SidebarMenuItem>
           
           <SidebarMenuItem>
-            <SidebarMenuButton active={isActive("/tasks")} asChild>
+            <SidebarMenuButton isActive={isActive("/tasks")} asChild>
               <Link to="/tasks" className="flex items-center">
                 <CheckSquare className="mr-2 h-5 w-5" />
                 <span>Tasks</span>
@@ -40,7 +40,7 @@ const Navbar = () => {
           </SidebarMenuItem>
           
           <SidebarMenuItem>
-            <SidebarMenuButton active={false} asChild>
+            <SidebarMenuButton isActive={false} asChild>
               <Link to="#" className="flex items-center">
                 <Users className="mr-2 h-5 w-5" />
                 <span>Team</span>
@@ -49,7 +49,7 @@ const Navbar = () => {
           </SidebarMenuItem>
           
           <SidebarMenuItem>
-            <SidebarMenuButton active={false} asChild>
+            <SidebarMenuButton isActive={false} asChild>
               <Link to="#" className="flex items-center">
                 <Settings className="mr-2 h-5 w-5" />
                 <span>Settings</span>

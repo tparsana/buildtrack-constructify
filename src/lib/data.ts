@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   name: string;
@@ -10,7 +9,7 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'backlog' | 'todo' | 'in-progress' | 'review' | 'done';
+  status: 'backlog' | 'todo' | 'in-progress' | 'review' | 'done' | 'on-hold';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assignee: User | null;
   reporter: User;
