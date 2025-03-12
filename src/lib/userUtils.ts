@@ -10,7 +10,7 @@ export const fetchUserProfiles = async (userIds: string[]): Promise<Map<string, 
     // Use a single query with an "in" clause for better performance
     const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, name, avatar, role')
       .in('id', userIds);
     
     if (profilesError) throw profilesError;
@@ -21,7 +21,7 @@ export const fetchUserProfiles = async (userIds: string[]): Promise<Map<string, 
       userMap.set(profile.id, {
         id: profile.id,
         name: profile.name,
-        avatar: profile.avatar,
+        avatar: profile.avatar || '',
         role: profile.role
       });
     });

@@ -20,7 +20,7 @@ const fetchTaskComments = async (taskId: string) => {
     }
     
     return commentsData.map(comment => {
-      // Check if profiles exists and is not an error
+      // Safely check if profiles exists and has expected properties
       const profile = comment.profiles && 
                      typeof comment.profiles === 'object' && 
                      !('error' in comment.profiles) ? 
@@ -72,14 +72,43 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
       tasksData.map(async (task) => {
         const comments = await fetchTaskComments(task.id);
         
+        // Safely handle assignee
+        const assignee = task.assignee && 
+                        typeof task.assignee === 'object' && 
+                        !('error' in task.assignee) ? 
+                        task.assignee : null;
+        
+        // Safely handle reporter
+        const reporter = task.reporter && 
+                        typeof task.reporter === 'object' && 
+                        !('error' in task.reporter) ? 
+                        task.reporter : { 
+                          id: task.reporter_id, 
+                          name: "Unknown", 
+                          avatar: "", 
+                          role: "" 
+                        };
+        
+        // Ensure status is one of the allowed values
+        let typeSafeStatus: "backlog" | "todo" | "in-progress" | "review" | "done" | "on-hold" = "todo";
+        if (["backlog", "todo", "in-progress", "review", "done", "on-hold"].includes(task.status)) {
+          typeSafeStatus = task.status as "backlog" | "todo" | "in-progress" | "review" | "done" | "on-hold";
+        }
+        
+        // Ensure priority is one of the allowed values
+        let typeSafePriority: "low" | "medium" | "high" | "urgent" = "medium";
+        if (["low", "medium", "high", "urgent"].includes(task.priority)) {
+          typeSafePriority = task.priority as "low" | "medium" | "high" | "urgent";
+        }
+        
         return {
           id: task.id,
           title: task.title,
           description: task.description || '',
-          status: task.status,
-          priority: task.priority,
-          assignee: task.assignee || null,
-          reporter: task.reporter || { id: task.reporter_id, name: "Unknown", avatar: "", role: "" },
+          status: typeSafeStatus,
+          priority: typeSafePriority,
+          assignee: assignee,
+          reporter: reporter,
           dueDate: task.due_date,
           createdAt: task.created_at,
           updatedAt: task.updated_at,
@@ -108,7 +137,7 @@ export const addTask = async (task: Task): Promise<boolean> => {
         status: task.status,
         priority: task.priority,
         assignee_id: task.assignee?.id,
-        reporter_id: task.reporter?.id,
+        reporter_id: task.reporter?.id || '00000000-0000-0000-0000-000000000000', // Fallback value
         due_date: task.dueDate,
         project_id: task.projectId
       });
@@ -170,7 +199,8 @@ export const addComment = async (taskId: string, text: string, userId: string): 
 export const raiseTicket = async (
   title: string, 
   description: string, 
-  projectId: string
+  projectId: string,
+  userId: string // Added reporter_id parameter
 ): Promise<{ success: boolean; taskId?: string }> => {
   try {
     // Create new ticket (high priority task)
@@ -181,7 +211,8 @@ export const raiseTicket = async (
         description,
         status: 'todo',
         priority: 'urgent',
-        project_id: projectId
+        project_id: projectId,
+        reporter_id: userId // Added required reporter_id
       })
       .select()
       .single();

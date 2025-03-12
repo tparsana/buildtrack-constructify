@@ -11,20 +11,35 @@ export const fetchProjects = async (): Promise<Project[]> => {
       .from('projects')
       .select(`
         *,
-        profiles:lead_id(*),
-        project_members(user_id)
+        profiles(id, name, avatar, role)
       `);
 
     if (projectsError) throw projectsError;
 
-    // Get all unique user IDs from project members
-    const userIds = new Set<string>();
-    projectsData.forEach(project => {
-      if (project.project_members && project.project_members.length > 0) {
-        project.project_members.forEach((member: any) => {
-          if (member.user_id) userIds.add(member.user_id);
-        });
+    // Get all project IDs to fetch team members
+    const projectIds = projectsData.map(project => project.id);
+    
+    // Fetch all team members in a single query
+    const { data: teamMembersData, error: teamMembersError } = await supabase
+      .from('project_members')
+      .select('project_id, user_id')
+      .in('project_id', projectIds);
+      
+    if (teamMembersError) throw teamMembersError;
+    
+    // Group team members by project
+    const teamMembersByProject: Record<string, string[]> = {};
+    teamMembersData.forEach(member => {
+      if (!teamMembersByProject[member.project_id]) {
+        teamMembersByProject[member.project_id] = [];
       }
+      teamMembersByProject[member.project_id].push(member.user_id);
+    });
+    
+    // Get all unique user IDs from team members
+    const userIds = new Set<string>();
+    Object.values(teamMembersByProject).forEach(members => {
+      members.forEach(userId => userIds.add(userId));
     });
     
     // Only fetch user profiles if there are team members
@@ -37,34 +52,51 @@ export const fetchProjects = async (): Promise<Project[]> => {
     return projectsData.map(project => {
       // Get team members for this project
       const teamMembers: User[] = [];
-      if (project.project_members) {
-        project.project_members.forEach((member: any) => {
-          const user = userMap.get(member.user_id);
-          if (user) teamMembers.push(user);
-        });
+      const projectTeamIds = teamMembersByProject[project.id] || [];
+      projectTeamIds.forEach(userId => {
+        const user = userMap.get(userId);
+        if (user) teamMembers.push(user);
+      });
+
+      // Handle lead safely with type checking
+      const projectLead = project.profiles && 
+                          typeof project.profiles === 'object' && 
+                          !('error' in project.profiles) 
+                            ? {
+                                id: project.profiles.id,
+                                name: project.profiles.name,
+                                avatar: project.profiles.avatar,
+                                role: project.profiles.role
+                              }
+                            : { 
+                                id: project.lead_id, 
+                                name: "Unknown", 
+                                avatar: "", 
+                                role: "" 
+                              };
+
+      // Ensure status is one of the allowed values
+      let typeSafeStatus: "planning" | "active" | "on-hold" | "completed" = "planning";
+      if (["planning", "active", "on-hold", "completed"].includes(project.status)) {
+        typeSafeStatus = project.status as "planning" | "active" | "on-hold" | "completed";
       }
 
-      // Create the project object
+      // Create the project object with proper types
       return {
         id: project.id,
         name: project.name,
         description: project.description || '',
-        status: project.status,
+        status: typeSafeStatus,
         startDate: project.start_date,
         endDate: project.end_date,
-        progress: project.progress,
-        lead: project.profiles ? {
-          id: project.profiles.id,
-          name: project.profiles.name,
-          avatar: project.profiles.avatar,
-          role: project.profiles.role
-        } : { id: project.lead_id, name: "Unknown", avatar: "", role: "" },
+        progress: project.progress || 0,
+        lead: projectLead,
         team: teamMembers,
         tasks: [],
         client: project.client || 'N/A',
         budget: {
-          total: parseFloat(project.budget_total) || 0,
-          spent: parseFloat(project.budget_spent) || 0,
+          total: typeof project.budget_total === 'number' ? project.budget_total : parseFloat(project.budget_total) || 0,
+          spent: typeof project.budget_spent === 'number' ? project.budget_spent : parseFloat(project.budget_spent) || 0,
           currency: 'USD'
         },
         location: project.location || 'N/A'
