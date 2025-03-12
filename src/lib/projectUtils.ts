@@ -2,15 +2,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Project, User } from "./data";
 import { fetchUserProfiles } from "./userUtils";
 
-// Fetch all projects with optimized queries
 export const fetchProjects = async (): Promise<Project[]> => {
   try {
-    // Fetch projects with a single query
+    // Fetch projects with a single query, using proper foreign key relation
     const { data: projectsData, error: projectsError } = await supabase
       .from('projects')
       .select(`
         *,
-        profiles(id, name, avatar, role)
+        profiles:lead_id (id, name, avatar, role)
       `);
 
     if (projectsError) throw projectsError;
@@ -57,23 +56,17 @@ export const fetchProjects = async (): Promise<Project[]> => {
         if (user) teamMembers.push(user);
       });
 
-      // Handle lead with null checks and type assertion
-      const projectLead = project.profiles ? {
-        id: project.profiles.id || "",
-        name: project.profiles.name || "Unknown",
-        avatar: project.profiles.avatar || "",
-        role: project.profiles.role || ""
-      } : {
-        id: project.lead_id || "", 
-        name: "Unknown", 
-        avatar: "", 
-        role: "" 
+      // Handle lead with null checks
+      const lead = project.profiles || {
+        id: project.lead_id || "",
+        name: "Unknown",
+        avatar: "",
+        role: ""
       };
 
       // Ensure status is one of the allowed values
       const typeSafeStatus = (project.status as "planning" | "active" | "on-hold" | "completed") || "planning";
 
-      // Create the project object with proper types
       return {
         id: project.id,
         name: project.name,
@@ -82,13 +75,13 @@ export const fetchProjects = async (): Promise<Project[]> => {
         startDate: project.start_date,
         endDate: project.end_date,
         progress: project.progress || 0,
-        lead: projectLead,
+        lead: lead,
         team: teamMembers,
         tasks: [],
         client: project.client || 'N/A',
         budget: {
-          total: typeof project.budget_total === 'number' ? project.budget_total : 0,
-          spent: typeof project.budget_spent === 'number' ? project.budget_spent : 0,
+          total: Number(project.budget_total) || 0,
+          spent: Number(project.budget_spent) || 0,
           currency: 'USD'
         },
         location: project.location || 'N/A'

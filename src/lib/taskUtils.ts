@@ -2,14 +2,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Task, User } from "./data";
 import { fetchUserProfiles } from "./userUtils";
 
-// Fetch comments for tasks with proper error handling
 const fetchTaskComments = async (taskId: string) => {
   try {
     const { data: commentsData, error: commentsError } = await supabase
       .from('comments')
       .select(`
         *,
-        profiles:user_id(id, name, avatar, role)
+        user:user_id (id, name, avatar, role)
       `)
       .eq('task_id', taskId);
     
@@ -19,23 +18,17 @@ const fetchTaskComments = async (taskId: string) => {
     }
     
     return commentsData.map(comment => {
-      // Safely handle profile data with null checks
-      const profile = comment.profiles ? {
-        id: comment.profiles.id || "",
-        name: comment.profiles.name || "Unknown User",
-        avatar: comment.profiles.avatar || "",
-        role: comment.profiles.role || ""
-      } : null;
+      const author = comment.user || {
+        id: comment.user_id,
+        name: "Unknown User",
+        avatar: "",
+        role: ""
+      };
       
       return {
         id: comment.id,
         text: comment.content,
-        author: profile || {
-          id: comment.user_id,
-          name: "Unknown User",
-          avatar: "",
-          role: "",
-        },
+        author,
         createdAt: comment.created_at
       };
     });
@@ -45,13 +38,12 @@ const fetchTaskComments = async (taskId: string) => {
   }
 };
 
-// Fetch tasks for a project with optimized queries
 export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
   try {
     let query = supabase.from('tasks').select(`
       *,
-      assignee:assignee_id(id, name, avatar, role),
-      reporter:reporter_id(id, name, avatar, role)
+      assignee:assignee_id (id, name, avatar, role),
+      reporter:reporter_id (id, name, avatar, role)
     `);
     
     if (projectId) {
@@ -62,43 +54,21 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
     
     if (tasksError) throw tasksError;
     
-    // Map tasks with assignee and reporter
     const mappedTasks = await Promise.all(
       tasksData.map(async (task) => {
         const comments = await fetchTaskComments(task.id);
         
-        // Safely handle assignee with null check
-        const assignee = task.assignee ? {
-          id: task.assignee.id || "",
-          name: task.assignee.name || "Unknown",
-          avatar: task.assignee.avatar || "",
-          role: task.assignee.role || ""
-        } : null;
+        const assignee = task.assignee || null;
         
-        // Safely handle reporter with null check
-        const reporter = task.reporter ? {
-          id: task.reporter.id || "",
-          name: task.reporter.name || "Unknown",
-          avatar: task.reporter.avatar || "",
-          role: task.reporter.role || ""
-        } : {
+        const reporter = task.reporter || {
           id: task.reporter_id,
           name: "Unknown",
           avatar: "",
           role: ""
         };
         
-        // Ensure status is one of the allowed values
-        let typeSafeStatus: "backlog" | "todo" | "in-progress" | "review" | "done" | "on-hold" = "todo";
-        if (["backlog", "todo", "in-progress", "review", "done", "on-hold"].includes(task.status)) {
-          typeSafeStatus = task.status as "backlog" | "todo" | "in-progress" | "review" | "done" | "on-hold";
-        }
-        
-        // Ensure priority is one of the allowed values
-        let typeSafePriority: "low" | "medium" | "high" | "urgent" = "medium";
-        if (["low", "medium", "high", "urgent"].includes(task.priority)) {
-          typeSafePriority = task.priority as "low" | "medium" | "high" | "urgent";
-        }
+        const typeSafeStatus = (task.status as "backlog" | "todo" | "in-progress" | "review" | "done" | "on-hold") || "todo";
+        const typeSafePriority = (task.priority as "low" | "medium" | "high" | "urgent") || "medium";
         
         return {
           id: task.id,
@@ -106,8 +76,8 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
           description: task.description || '',
           status: typeSafeStatus,
           priority: typeSafePriority,
-          assignee: assignee,
-          reporter: reporter,
+          assignee,
+          reporter,
           dueDate: task.due_date,
           createdAt: task.created_at,
           updatedAt: task.updated_at,
@@ -194,15 +164,13 @@ export const addComment = async (taskId: string, text: string, userId: string): 
   }
 };
 
-// Function to raise a ticket (create a high priority task)
 export const raiseTicket = async (
   title: string, 
   description: string, 
   projectId: string,
-  userId: string // Added reporter_id parameter
+  userId: string
 ): Promise<{ success: boolean; taskId?: string }> => {
   try {
-    // Create new ticket (high priority task)
     const { data, error } = await supabase
       .from('tasks')
       .insert({
@@ -211,7 +179,8 @@ export const raiseTicket = async (
         status: 'todo',
         priority: 'urgent',
         project_id: projectId,
-        reporter_id: userId // Added required reporter_id
+        reporter_id: userId,
+        assignee_id: null
       })
       .select()
       .single();
