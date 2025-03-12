@@ -59,12 +59,14 @@ export const fetchProjects = async (): Promise<Project[]> => {
 
       // Create a valid User object for lead (with fallback)
       let lead: User;
-      if (project.profiles && typeof project.profiles === 'object' && 'id' in project.profiles) {
+      if (project.profiles && typeof project.profiles === 'object' && project.profiles !== null) {
+        // Use optional chaining and nullish coalescing for safety
+        const profilesObj = project.profiles as any;
         lead = {
-          id: project.profiles.id || "",
-          name: project.profiles.name || "Unknown",
-          avatar: project.profiles.avatar || "",
-          role: project.profiles.role || ""
+          id: profilesObj?.id || "",
+          name: profilesObj?.name || "Unknown",
+          avatar: profilesObj?.avatar || "",
+          role: profilesObj?.role || ""
         };
       } else {
         // Default fallback if lead data is missing

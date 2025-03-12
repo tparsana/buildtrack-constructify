@@ -21,12 +21,13 @@ const fetchTaskComments = async (taskId: string) => {
     return commentsData.map(comment => {
       // Ensure we have a valid User object for author
       let author: User;
-      if (comment.user && typeof comment.user === 'object' && 'id' in comment.user) {
+      if (comment.user && typeof comment.user === 'object' && comment.user !== null) {
+        const userObj = comment.user as any;
         author = {
-          id: comment.user.id || comment.user_id,
-          name: comment.user.name || "Unknown User",
-          avatar: comment.user.avatar || "",
-          role: comment.user.role || ""
+          id: userObj?.id || comment.user_id,
+          name: userObj?.name || "Unknown User",
+          avatar: userObj?.avatar || "",
+          role: userObj?.role || ""
         };
       } else {
         // Fallback if user data is missing
@@ -73,12 +74,13 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
         
         // Create a valid User object for assignee (can be null)
         let assignee: User | null = null;
-        if (task.assignee && typeof task.assignee === 'object' && 'id' in task.assignee) {
+        if (task.assignee && typeof task.assignee === 'object' && task.assignee !== null) {
+          const assigneeObj = task.assignee as any;
           assignee = {
-            id: task.assignee.id || task.assignee_id || "",
-            name: task.assignee.name || "Unknown",
-            avatar: task.assignee.avatar || "",
-            role: task.assignee.role || ""
+            id: assigneeObj?.id || task.assignee_id || "",
+            name: assigneeObj?.name || "Unknown",
+            avatar: assigneeObj?.avatar || "",
+            role: assigneeObj?.role || ""
           };
         } else if (task.assignee_id) {
           // Create minimal assignee if we only have the ID
@@ -92,12 +94,13 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
         
         // Create a valid User object for reporter
         let reporter: User;
-        if (task.reporter && typeof task.reporter === 'object' && 'id' in task.reporter) {
+        if (task.reporter && typeof task.reporter === 'object' && task.reporter !== null) {
+          const reporterObj = task.reporter as any;
           reporter = {
-            id: task.reporter.id || task.reporter_id,
-            name: task.reporter.name || "Unknown",
-            avatar: task.reporter.avatar || "",
-            role: task.reporter.role || ""
+            id: reporterObj?.id || task.reporter_id,
+            name: reporterObj?.name || "Unknown",
+            avatar: reporterObj?.avatar || "",
+            role: reporterObj?.role || ""
           };
         } else {
           // Fallback for reporter
