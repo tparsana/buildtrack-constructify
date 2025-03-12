@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +36,7 @@ import { useAuth } from "@/lib/auth";
 interface NewTaskDialogProps {
   projects: Project[];
   users: User[];
-  onAddTask: (task: any) => void;
+  onAddTask: (task: any) => Promise<boolean>;
   currentProjectId?: string;
   trigger?: React.ReactNode;
 }
@@ -57,6 +58,7 @@ const NewTaskDialog = ({
   const [priority, setPriority] = useState("medium");
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,18 +99,31 @@ const NewTaskDialog = ({
       projectId
     };
     
-    const success = await onAddTask(newTask);
+    setIsSubmitting(true);
     
-    if (success) {
-      // Reset form and close dialog only on success
-      setTitle("");
-      setDescription("");
-      setStatus("todo");
-      setPriority("medium");
-      setAssigneeId("");
-      setDueDate(undefined);
-      if (!currentProjectId) setProjectId("");
-      setOpen(false);
+    try {
+      const success = await onAddTask(newTask);
+      
+      if (success) {
+        // Reset form and close dialog only on success
+        setTitle("");
+        setDescription("");
+        setStatus("todo");
+        setPriority("medium");
+        setAssigneeId("");
+        setDueDate(undefined);
+        if (!currentProjectId) setProjectId("");
+        setOpen(false);
+      }
+    } catch (error) {
+      console.error("Error adding task:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create task",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -250,10 +265,12 @@ const NewTaskDialog = ({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => setOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit">Create Task</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Creating..." : "Create Task"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

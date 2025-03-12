@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { getStatusColor, getUsers } from "@/lib/data";
 import { useToast } from "@/components/ui/use-toast";
@@ -90,7 +89,7 @@ const Index = () => {
     }
   };
 
-  const handleAddTask = async (task: any) => {
+  const handleAddTask = async (task: any): Promise<boolean> => {
     try {
       const success = await addTask(task);
       if (success) {
