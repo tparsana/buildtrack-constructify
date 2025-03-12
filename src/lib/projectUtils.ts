@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Project, User } from "./data";
 import { fetchUserProfiles } from "./userUtils";
@@ -56,13 +57,24 @@ export const fetchProjects = async (): Promise<Project[]> => {
         if (user) teamMembers.push(user);
       });
 
-      // Handle lead with null checks
-      const lead = project.profiles || {
-        id: project.lead_id || "",
-        name: "Unknown",
-        avatar: "",
-        role: ""
-      };
+      // Create a valid User object for lead (with fallback)
+      let lead: User;
+      if (project.profiles && typeof project.profiles === 'object' && 'id' in project.profiles) {
+        lead = {
+          id: project.profiles.id || "",
+          name: project.profiles.name || "Unknown",
+          avatar: project.profiles.avatar || "",
+          role: project.profiles.role || ""
+        };
+      } else {
+        // Default fallback if lead data is missing
+        lead = {
+          id: project.lead_id || "",
+          name: "Unknown",
+          avatar: "",
+          role: ""
+        };
+      }
 
       // Ensure status is one of the allowed values
       const typeSafeStatus = (project.status as "planning" | "active" | "on-hold" | "completed") || "planning";

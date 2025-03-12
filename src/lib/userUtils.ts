@@ -20,9 +20,9 @@ export const fetchUserProfiles = async (userIds: string[]): Promise<Map<string, 
     profilesData.forEach(profile => {
       userMap.set(profile.id, {
         id: profile.id,
-        name: profile.name,
+        name: profile.name || "Unknown",
         avatar: profile.avatar || '',
-        role: profile.role
+        role: profile.role || ""
       });
     });
     

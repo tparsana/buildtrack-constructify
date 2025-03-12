@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Task, User } from "./data";
 import { fetchUserProfiles } from "./userUtils";
@@ -18,12 +19,24 @@ const fetchTaskComments = async (taskId: string) => {
     }
     
     return commentsData.map(comment => {
-      const author = comment.user || {
-        id: comment.user_id,
-        name: "Unknown User",
-        avatar: "",
-        role: ""
-      };
+      // Ensure we have a valid User object for author
+      let author: User;
+      if (comment.user && typeof comment.user === 'object' && 'id' in comment.user) {
+        author = {
+          id: comment.user.id || comment.user_id,
+          name: comment.user.name || "Unknown User",
+          avatar: comment.user.avatar || "",
+          role: comment.user.role || ""
+        };
+      } else {
+        // Fallback if user data is missing
+        author = {
+          id: comment.user_id,
+          name: "Unknown User",
+          avatar: "",
+          role: ""
+        };
+      }
       
       return {
         id: comment.id,
@@ -58,14 +71,43 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
       tasksData.map(async (task) => {
         const comments = await fetchTaskComments(task.id);
         
-        const assignee = task.assignee || null;
+        // Create a valid User object for assignee (can be null)
+        let assignee: User | null = null;
+        if (task.assignee && typeof task.assignee === 'object' && 'id' in task.assignee) {
+          assignee = {
+            id: task.assignee.id || task.assignee_id || "",
+            name: task.assignee.name || "Unknown",
+            avatar: task.assignee.avatar || "",
+            role: task.assignee.role || ""
+          };
+        } else if (task.assignee_id) {
+          // Create minimal assignee if we only have the ID
+          assignee = {
+            id: task.assignee_id,
+            name: "Unknown",
+            avatar: "",
+            role: ""
+          };
+        }
         
-        const reporter = task.reporter || {
-          id: task.reporter_id,
-          name: "Unknown",
-          avatar: "",
-          role: ""
-        };
+        // Create a valid User object for reporter
+        let reporter: User;
+        if (task.reporter && typeof task.reporter === 'object' && 'id' in task.reporter) {
+          reporter = {
+            id: task.reporter.id || task.reporter_id,
+            name: task.reporter.name || "Unknown",
+            avatar: task.reporter.avatar || "",
+            role: task.reporter.role || ""
+          };
+        } else {
+          // Fallback for reporter
+          reporter = {
+            id: task.reporter_id,
+            name: "Unknown",
+            avatar: "",
+            role: ""
+          };
+        }
         
         const typeSafeStatus = (task.status as "backlog" | "todo" | "in-progress" | "review" | "done" | "on-hold") || "todo";
         const typeSafePriority = (task.priority as "low" | "medium" | "high" | "urgent") || "medium";
