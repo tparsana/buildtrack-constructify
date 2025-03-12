@@ -13,7 +13,10 @@ export const fetchProjects = async (): Promise<Project[]> => {
         profiles:lead_id (id, name, avatar, role)
       `);
 
-    if (projectsError) throw projectsError;
+    if (projectsError) {
+      console.error("Error fetching projects:", projectsError);
+      throw projectsError;
+    }
 
     // Get all project IDs to fetch team members
     const projectIds = projectsData.map(project => project.id);
@@ -24,7 +27,10 @@ export const fetchProjects = async (): Promise<Project[]> => {
       .select('project_id, user_id')
       .in('project_id', projectIds);
       
-    if (teamMembersError) throw teamMembersError;
+    if (teamMembersError) {
+      console.error("Error fetching team members:", teamMembersError);
+      throw teamMembersError;
+    }
     
     // Group team members by project
     const teamMembersByProject: Record<string, string[]> = {};

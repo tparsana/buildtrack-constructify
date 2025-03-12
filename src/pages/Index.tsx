@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { getStatusColor, getUsers } from "@/lib/data";
 import { useToast } from "@/components/ui/use-toast";
@@ -15,7 +16,7 @@ import { Search, Plus, Building, CheckSquare, Clock, AlertTriangle, Loader2 } fr
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchProjects } from "@/lib/projectUtils";
 import { fetchTasks, addTask } from "@/lib/taskUtils";
 
@@ -24,6 +25,7 @@ const Index = () => {
   const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const users = getUsers();
 
   useEffect(() => {
@@ -61,6 +63,9 @@ const Index = () => {
     try {
       const success = await addProject(project);
       if (success) {
+        // Invalidate and refetch projects after adding a new one
+        await queryClient.invalidateQueries({ queryKey: ['projects'] });
+        
         toast({
           title: "Project Created",
           description: `${project.name} has been successfully created`,
@@ -89,6 +94,9 @@ const Index = () => {
     try {
       const success = await addTask(task);
       if (success) {
+        // Invalidate and refetch tasks after adding a new one
+        await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        
         toast({
           title: "Task Created",
           description: `${task.title} has been successfully created`,

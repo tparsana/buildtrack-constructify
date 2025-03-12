@@ -141,7 +141,7 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
 };
 
 // Add a new task
-export const addTask = async (task: Task): Promise<boolean> => {
+export const addTask = async (task: any): Promise<boolean> => {
   try {
     const { data, error } = await supabase
       .from('tasks')
@@ -150,13 +150,17 @@ export const addTask = async (task: Task): Promise<boolean> => {
         description: task.description,
         status: task.status,
         priority: task.priority,
-        assignee_id: task.assignee?.id,
-        reporter_id: task.reporter?.id || '00000000-0000-0000-0000-000000000000', // Fallback value
+        assignee_id: task.assigneeId,  // Use assigneeId directly
+        reporter_id: task.reporterId || '00000000-0000-0000-0000-000000000000', // Use reporterId directly with fallback
         due_date: task.dueDate,
         project_id: task.projectId
-      });
+      })
+      .select();
     
-    if (error) throw error;
+    if (error) {
+      console.error("Error in task creation:", error);
+      throw error;
+    }
     
     return true;
   } catch (error) {

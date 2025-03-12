@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +30,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { Project, User } from "@/lib/data";
+import { useAuth } from "@/lib/auth";
 
 interface NewTaskDialogProps {
   projects: Project[];
@@ -48,6 +48,7 @@ const NewTaskDialog = ({
   trigger 
 }: NewTaskDialogProps) => {
   const { toast } = useToast();
+  const { currentUser } = useAuth();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -57,7 +58,7 @@ const NewTaskDialog = ({
   const [assigneeId, setAssigneeId] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate form
@@ -82,38 +83,33 @@ const NewTaskDialog = ({
     
     const assignee = assigneeId ? users.find(u => u.id === assigneeId) : null;
     
-    // Create new task with random ID
+    // Create task object for database
     const newTask = {
-      id: `t${Math.floor(Math.random() * 10000)}`,
       title,
       description,
       status,
       priority,
       assignee,
-      reporter: project.lead,
+      assigneeId: assigneeId || null,
+      reporter: currentUser,
+      reporterId: currentUser?.id,
       dueDate: dueDate ? dueDate.toISOString().split('T')[0] : null,
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0],
-      comments: [],
-      attachments: [],
       projectId
     };
     
-    onAddTask(newTask);
-    toast({
-      title: "Task Created",
-      description: `${title} has been successfully created`,
-    });
+    const success = await onAddTask(newTask);
     
-    // Reset form and close dialog
-    setTitle("");
-    setDescription("");
-    setStatus("todo");
-    setPriority("medium");
-    setAssigneeId("");
-    setDueDate(undefined);
-    if (!currentProjectId) setProjectId("");
-    setOpen(false);
+    if (success) {
+      // Reset form and close dialog only on success
+      setTitle("");
+      setDescription("");
+      setStatus("todo");
+      setPriority("medium");
+      setAssigneeId("");
+      setDueDate(undefined);
+      if (!currentProjectId) setProjectId("");
+      setOpen(false);
+    }
   };
 
   return (
