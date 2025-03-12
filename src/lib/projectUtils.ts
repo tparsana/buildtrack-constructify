@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Project, User } from "./data";
 import { fetchUserProfiles } from "./userUtils";
@@ -58,28 +57,21 @@ export const fetchProjects = async (): Promise<Project[]> => {
         if (user) teamMembers.push(user);
       });
 
-      // Handle lead safely with type checking
-      const projectLead = project.profiles && 
-                          typeof project.profiles === 'object' && 
-                          !('error' in project.profiles) 
-                            ? {
-                                id: project.profiles.id,
-                                name: project.profiles.name,
-                                avatar: project.profiles.avatar,
-                                role: project.profiles.role
-                              }
-                            : { 
-                                id: project.lead_id, 
-                                name: "Unknown", 
-                                avatar: "", 
-                                role: "" 
-                              };
+      // Handle lead with null checks and type assertion
+      const projectLead = project.profiles ? {
+        id: project.profiles.id || "",
+        name: project.profiles.name || "Unknown",
+        avatar: project.profiles.avatar || "",
+        role: project.profiles.role || ""
+      } : {
+        id: project.lead_id || "", 
+        name: "Unknown", 
+        avatar: "", 
+        role: "" 
+      };
 
       // Ensure status is one of the allowed values
-      let typeSafeStatus: "planning" | "active" | "on-hold" | "completed" = "planning";
-      if (["planning", "active", "on-hold", "completed"].includes(project.status)) {
-        typeSafeStatus = project.status as "planning" | "active" | "on-hold" | "completed";
-      }
+      const typeSafeStatus = (project.status as "planning" | "active" | "on-hold" | "completed") || "planning";
 
       // Create the project object with proper types
       return {
@@ -95,8 +87,8 @@ export const fetchProjects = async (): Promise<Project[]> => {
         tasks: [],
         client: project.client || 'N/A',
         budget: {
-          total: typeof project.budget_total === 'number' ? project.budget_total : parseFloat(project.budget_total) || 0,
-          spent: typeof project.budget_spent === 'number' ? project.budget_spent : parseFloat(project.budget_spent) || 0,
+          total: typeof project.budget_total === 'number' ? project.budget_total : 0,
+          spent: typeof project.budget_spent === 'number' ? project.budget_spent : 0,
           currency: 'USD'
         },
         location: project.location || 'N/A'

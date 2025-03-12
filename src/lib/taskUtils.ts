@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Task, User } from "./data";
 import { fetchUserProfiles } from "./userUtils";
@@ -20,21 +19,18 @@ const fetchTaskComments = async (taskId: string) => {
     }
     
     return commentsData.map(comment => {
-      // Safely check if profiles exists and has expected properties
-      const profile = comment.profiles && 
-                     typeof comment.profiles === 'object' && 
-                     !('error' in comment.profiles) ? 
-                     comment.profiles : null;
+      // Safely handle profile data with null checks
+      const profile = comment.profiles ? {
+        id: comment.profiles.id || "",
+        name: comment.profiles.name || "Unknown User",
+        avatar: comment.profiles.avatar || "",
+        role: comment.profiles.role || ""
+      } : null;
       
       return {
         id: comment.id,
         text: comment.content,
-        author: profile ? {
-          id: profile.id,
-          name: profile.name,
-          avatar: profile.avatar,
-          role: profile.role,
-        } : {
+        author: profile || {
           id: comment.user_id,
           name: "Unknown User",
           avatar: "",
@@ -52,7 +48,6 @@ const fetchTaskComments = async (taskId: string) => {
 // Fetch tasks for a project with optimized queries
 export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
   try {
-    // Build the query
     let query = supabase.from('tasks').select(`
       *,
       assignee:assignee_id(id, name, avatar, role),
@@ -72,22 +67,26 @@ export const fetchTasks = async (projectId?: string): Promise<Task[]> => {
       tasksData.map(async (task) => {
         const comments = await fetchTaskComments(task.id);
         
-        // Safely handle assignee
-        const assignee = task.assignee && 
-                        typeof task.assignee === 'object' && 
-                        !('error' in task.assignee) ? 
-                        task.assignee : null;
+        // Safely handle assignee with null check
+        const assignee = task.assignee ? {
+          id: task.assignee.id || "",
+          name: task.assignee.name || "Unknown",
+          avatar: task.assignee.avatar || "",
+          role: task.assignee.role || ""
+        } : null;
         
-        // Safely handle reporter
-        const reporter = task.reporter && 
-                        typeof task.reporter === 'object' && 
-                        !('error' in task.reporter) ? 
-                        task.reporter : { 
-                          id: task.reporter_id, 
-                          name: "Unknown", 
-                          avatar: "", 
-                          role: "" 
-                        };
+        // Safely handle reporter with null check
+        const reporter = task.reporter ? {
+          id: task.reporter.id || "",
+          name: task.reporter.name || "Unknown",
+          avatar: task.reporter.avatar || "",
+          role: task.reporter.role || ""
+        } : {
+          id: task.reporter_id,
+          name: "Unknown",
+          avatar: "",
+          role: ""
+        };
         
         // Ensure status is one of the allowed values
         let typeSafeStatus: "backlog" | "todo" | "in-progress" | "review" | "done" | "on-hold" = "todo";
