@@ -62,7 +62,7 @@ const Index = () => {
     try {
       const success = await addProject(project);
       if (success) {
-        // Invalidate and refetch projects after adding a new one
+        // Invalidate and refetch projects after adding a new one.
         await queryClient.invalidateQueries({ queryKey: ['projects'] });
         
         toast({
